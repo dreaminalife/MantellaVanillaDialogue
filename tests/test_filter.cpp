@@ -49,10 +49,12 @@ TEST_CASE("menu talk is kept, and not without the menu")
 	CHECK_FALSE(IsWorthKeeping(Line(0, 0, false)));
 }
 
-TEST_CASE("the greeting when the dialogue menu opens is dropped, but not in a scene")
+TEST_CASE("the greeting when the dialogue menu opens is dropped, also when the speaker is in a scene")
 {
 	CHECK_FALSE(IsWorthKeeping(Line(kHelloSubtype, 0, true)));
-	CHECK(IsWorthKeeping(Line(kHelloSubtype, 0x000ABCDE, true)));
+	CHECK_FALSE(IsWorthKeeping(Line(kHelloSubtype, 0x000ABCDE, true)));  // Talking to Mikael while his scene still runs
+	CHECK(IsWorthKeeping(Line(kSceneSubtype, 0x000ABCDE, true)));        // A scene line said in the dialogue menu
+	CHECK(IsWorthKeeping(Line(kHelloSubtype, 0x000ABCDE, false)));       // A greeting inside a scene, menu closed
 }
 
 TEST_CASE("a line reported again is let through once while it is the speaker's latest")

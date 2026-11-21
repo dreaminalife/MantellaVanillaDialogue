@@ -21,9 +21,11 @@ namespace HeardLines
 		if (a_line.speakerIsPlayer || EqualsIgnoringCase(a_line.fileName, "Mantella.esp")) {
 			return false;
 		}
-		// The greeting when the dialogue menu opens isn't an answer to anything the player picked
-		const bool answersPick = a_line.menuTalk && a_line.subtype != kHelloSubtype;
-		return answersPick || a_line.subtype == kSceneSubtype || a_line.sceneId != 0;
+		// The greeting when the dialogue menu opens isn't an answer to anything the player picked, also when the speaker is in a scene
+		if (a_line.menuTalk) {
+			return a_line.subtype != kHelloSubtype;
+		}
+		return a_line.subtype == kSceneSubtype || a_line.sceneId != 0;
 	}
 
 	bool RepeatGuard::IsNew(std::uint32_t a_speaker, std::uint32_t a_info)
