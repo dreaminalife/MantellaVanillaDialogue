@@ -21,9 +21,15 @@ namespace HeardLines
 		if (a_line.speakerIsPlayer || EqualsIgnoringCase(a_line.fileName, "Mantella.esp")) {
 			return false;
 		}
-		// The greeting when the dialogue menu opens isn't an answer to anything the player picked, also when the speaker is in a scene
+		// Outside the loaded area the game runs scenes without speaking them, each line over at once (a preacher in the city while the
+		// player is indoors reports hundreds a minute), and nobody is near enough to hear
+		if (!a_line.speakerLoaded) {
+			return false;
+		}
+		// The greeting when the dialogue menu opens and the goodbye when it closes aren't answers to anything the player picked (the last
+		// pick would be noted as their question), also when the speaker is in a scene
 		if (a_line.menuTalk) {
-			return a_line.subtype != kHelloSubtype;
+			return a_line.subtype != kHelloSubtype && a_line.subtype != kGoodbyeSubtype;
 		}
 		return a_line.subtype == kSceneSubtype || a_line.sceneId != 0;
 	}

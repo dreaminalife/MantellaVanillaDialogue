@@ -76,6 +76,7 @@ namespace HeardLines
 		const auto* scene = a_speaker->GetCurrentScene();
 		facts.sceneId = scene ? scene->GetFormID() : 0;
 		facts.menuTalk = !facts.speakerIsPlayer && IsMenuTalk(a_speaker);
+		facts.speakerLoaded = a_speaker->Is3DLoaded();
 		return facts;
 	}
 

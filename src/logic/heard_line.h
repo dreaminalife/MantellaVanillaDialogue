@@ -12,6 +12,7 @@ namespace HeardLines
 	inline constexpr std::uint32_t kPlayerRef = 0x14;  // The player's reference
 	inline constexpr int           kSceneSubtype = 14;  // DIALOGUE_DATA::Subtype::kScene
 	inline constexpr int           kHelloSubtype = 79;  // DIALOGUE_DATA::Subtype::kHello
+	inline constexpr int           kGoodbyeSubtype = 78;  // DIALOGUE_DATA::Subtype::kGoodBye
 
 	struct Person
 	{
@@ -43,6 +44,7 @@ namespace HeardLines
 		int           subtype = -1;  // The kind of line Skyrim files it under
 		std::uint32_t sceneId = 0;  // The scene the speaker is in now, 0 for none
 		bool          menuTalk = false;  // The dialogue menu is open with this speaker
+		bool          speakerLoaded = true;  // The speaker is in the area the game has loaded around the player
 	};
 
 	// A nearby actor, as the hearing check sees them

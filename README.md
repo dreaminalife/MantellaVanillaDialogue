@@ -2,7 +2,7 @@
 
 An SKSE plugin for [Mantella](https://github.com/art-from-the-machine/Mantella). It catches the voiced lines NPCs hear (scene lines, and the player's talk in the dialogue menu) so Mantella NPCs can remember them.
 
-Skyrim reports each line as it starts. The plugin keeps scene lines and menu talk, and drops the player's own lines, Mantella's lines (`Mantella.esp`) and chatter: greetings, idle remarks, combat shouts, grunts and breathing. For each line it notes who spoke, to whom, the words (read from the line, so subtitles can be off), who heard it and whether the player was there. The lines wait in the save until the Mantella game add-on hands them to Mantella with a request it already sends. Nothing runs while nobody speaks.
+Skyrim reports each line as it starts. The plugin keeps scene lines and menu talk, and drops the player's own lines, Mantella's lines (`Mantella.esp`), lines from people outside the area the game has loaded around the player (it runs their scenes without speaking them, so nobody could hear them) and chatter: greetings, idle remarks, combat shouts, grunts and breathing. For each line it notes who spoke, to whom, the words (read from the line, so subtitles can be off), who heard it and whether the player was there. The lines wait in the save until the Mantella game add-on hands them to Mantella with a request it already sends. Nothing runs while nobody speaks.
 
 One DLL works with Skyrim SE, AE and VR. It needs SKSE and the Address Library for SKSE Plugins.
 

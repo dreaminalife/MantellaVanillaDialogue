@@ -7,10 +7,18 @@ using namespace HeardLines;
 
 namespace
 {
-	LineFacts Line(int a_subtype, std::uint32_t a_scene = 0, bool a_menu = false, std::string a_file = "Skyrim.esm", bool a_player = false)
+	LineFacts Line(int a_subtype, std::uint32_t a_scene = 0, bool a_menu = false, std::string a_file = "Skyrim.esm", bool a_player = false,
+		bool a_loaded = true)
 	{
-		return { a_player, std::move(a_file), a_subtype, a_scene, a_menu };
+		return { a_player, std::move(a_file), a_subtype, a_scene, a_menu, a_loaded };
 	}
+}
+
+TEST_CASE("a speaker outside the loaded area is dropped, in a scene or in the dialogue menu")
+{
+	CHECK_FALSE(IsWorthKeeping(Line(kSceneSubtype, 0x000ABCDE, false, "Skyrim.esm", false, false)));
+	CHECK_FALSE(IsWorthKeeping(Line(0, 0, true, "Skyrim.esm", false, false)));
+	CHECK(IsWorthKeeping(Line(kSceneSubtype, 0x000ABCDE, false, "Skyrim.esm", false, true)));
 }
 
 TEST_CASE("scene lines are kept")
@@ -55,6 +63,13 @@ TEST_CASE("the greeting when the dialogue menu opens is dropped, also when the s
 	CHECK_FALSE(IsWorthKeeping(Line(kHelloSubtype, 0x000ABCDE, true)));  // Talking to Mikael while his scene still runs
 	CHECK(IsWorthKeeping(Line(kSceneSubtype, 0x000ABCDE, true)));        // A scene line said in the dialogue menu
 	CHECK(IsWorthKeeping(Line(kHelloSubtype, 0x000ABCDE, false)));       // A greeting inside a scene, menu closed
+}
+
+TEST_CASE("the goodbye when the dialogue menu closes is dropped")
+{
+	CHECK_FALSE(IsWorthKeeping(Line(kGoodbyeSubtype, 0, true)));
+	CHECK_FALSE(IsWorthKeeping(Line(kGoodbyeSubtype, 0x000ABCDE, true)));
+	CHECK(IsWorthKeeping(Line(kGoodbyeSubtype, 0x000ABCDE, false)));  // Said in a scene, menu closed
 }
 
 TEST_CASE("a line reported again is let through once while it is the speaker's latest")
