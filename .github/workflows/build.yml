@@ -27,10 +27,17 @@ jobs:
           key: deps-${{ hashFiles('.gitmodules', 'xmake.lua') }}-${{ github.sha }}
           restore-keys: deps-${{ hashFiles('.gitmodules', 'xmake.lua') }}-
 
-      - name: Build
+      - name: Configure
+        run: xmake config --yes --mode=releasedbg
+
+      # A failing test fails the run, so the plugin is never built from logic that doesn't pass
+      - name: Unit tests
         run: |
-          xmake config --yes --mode=releasedbg
-          xmake build --yes
+          xmake build --yes MantellaHeardLinesTests
+          xmake run MantellaHeardLinesTests
+
+      - name: Build
+        run: xmake build --yes MantellaHeardLines
 
       - uses: actions/upload-artifact@v4
         with:
