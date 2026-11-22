@@ -64,6 +64,45 @@ namespace HeardLines
 			const auto* topics = RE::MenuTopicManager::GetSingleton();
 			return ui && topics && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME) && topics->IsCurrentSpeaker(a_speaker->GetHandle());
 		}
+
+		// The option among these that leads to this line: the one for this very line, else one of its topic
+		const RE::MenuTopicManager::Dialogue* OptionFor(const RE::BSSimpleList<RE::MenuTopicManager::Dialogue*>* a_options, const RE::TESTopicInfo* a_info)
+		{
+			if (!a_options) {
+				return nullptr;
+			}
+			const RE::MenuTopicManager::Dialogue* sameTopic = nullptr;
+			for (const auto* option : *a_options) {
+				if (!option) {
+					continue;
+				}
+				if (option->parentTopicInfo == a_info) {
+					return option;
+				}
+				if (!sameTopic && a_info->parentTopic && option->parentTopic == a_info->parentTopic) {
+					sameTopic = option;
+				}
+			}
+			return sameTopic;
+		}
+
+		// What the player picked for the NPC to answer with this line, as the menu showed it. Not the game's last pick: when the answer
+		// starts, that still holds the pick before (the greeting for the first answer). Only read while the menu is open with this speaker:
+		// once it closes, the game may free the options
+		std::string PickFor(const RE::TESTopicInfo* a_info)
+		{
+			const auto* topics = RE::MenuTopicManager::GetSingleton();
+			const auto* option = OptionFor(topics->dialogueList, a_info);
+			// A pick that opened more options may have put its list under the new one
+			for (auto* node = topics->dialogueListStack; !option && node; node = node->next) {
+				option = OptionFor(node->item, a_info);
+			}
+			if (option && option->topicText.c_str() && option->topicText.c_str()[0]) {
+				return option->topicText.c_str();
+			}
+			const char* topicText = a_info->parentTopic ? a_info->parentTopic->GetFullName() : nullptr;
+			return topicText ? topicText : "";
+		}
 	}
 
 	LineFacts GameLineReader::ReadFacts(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info)
@@ -92,9 +131,7 @@ namespace HeardLines
 		line.scene = a_facts.menuTalk ? 0 : a_facts.sceneId;
 		if (a_facts.menuTalk) {
 			line.to = PersonOf(RE::PlayerCharacter::GetSingleton());
-			// Only read while the menu is open with this speaker: once it closes, the game may free the pick
-			const auto* pick = RE::MenuTopicManager::GetSingleton()->lastSelectedDialogue;
-			line.asked = pick && pick->topicText.c_str() ? pick->topicText.c_str() : "";
+			line.asked = PickFor(a_info);
 		} else {
 			RE::TESObjectREFR* to = nullptr;
 			if (auto* actor = a_speaker->As<RE::Actor>()) {
