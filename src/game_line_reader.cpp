@@ -65,8 +65,9 @@ namespace HeardLines
 			return ui && topics && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME) && topics->IsCurrentSpeaker(a_speaker->GetHandle());
 		}
 
-		// The option among these that leads to this line: the one for this very line, else one of its topic
-		const RE::MenuTopicManager::Dialogue* OptionFor(const RE::BSSimpleList<RE::MenuTopicManager::Dialogue*>* a_options, const RE::TESTopicInfo* a_info)
+		// The option among these that leads to this line: the one for this very line, else one of its topic. Not a const list:
+		// CommonLib's const iteration of it doesn't compile
+		const RE::MenuTopicManager::Dialogue* OptionFor(RE::BSSimpleList<RE::MenuTopicManager::Dialogue*>* a_options, const RE::TESTopicInfo* a_info)
 		{
 			if (!a_options) {
 				return nullptr;
@@ -91,7 +92,7 @@ namespace HeardLines
 		// once it closes, the game may free the options
 		std::string PickFor(const RE::TESTopicInfo* a_info)
 		{
-			const auto* topics = RE::MenuTopicManager::GetSingleton();
+			auto*       topics = RE::MenuTopicManager::GetSingleton();
 			const auto* option = OptionFor(topics->dialogueList, a_info);
 			// A pick that opened more options may have put its list under the new one
 			for (auto* node = topics->dialogueListStack; !option && node; node = node->next) {
