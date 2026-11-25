@@ -1,5 +1,6 @@
 #include "game_line_reader.h"
 
+#include <array>
 #include <ctime>
 
 namespace HeardLines
@@ -103,6 +104,72 @@ namespace HeardLines
 			}
 			return option && option->topicText.c_str() ? option->topicText.c_str() : "";
 		}
+
+		// Background chatter check (temporary)
+		std::string_view QuestTypeName(RE::QUEST_DATA::Type a_type)
+		{
+			static constexpr std::array<std::string_view, 12> names{ "None", "Main Quest", "Mages Guild", "Thieves Guild",
+				"Dark Brotherhood", "Companions", "Misc", "Daedric", "Side Quest", "Civil War", "Dawnguard", "Dragonborn" };
+			const auto index = static_cast<std::size_t>(a_type);
+			return index < names.size() ? names[index] : "?";
+		}
+
+		std::string QuestStartName(RE::QuestEvent a_event)
+		{
+			switch (a_event) {
+			case RE::QuestEvent::kNone:
+				return "no story event";
+			case RE::QuestEvent::kActorDialogue:
+				return "two NPCs meeting (ADIA)";
+			case RE::QuestEvent::kActorHello:
+				return "an NPC greeting (AHEL)";
+			case RE::QuestEvent::kChangeLocation:
+				return "a location change (CLOC)";
+			case RE::QuestEvent::kScript:
+				return "a script (SCPT)";
+			default:
+				return std::format("story event {}", static_cast<int>(a_event));
+			}
+		}
+
+		std::string DescribeQuest(const RE::TESQuest* a_quest)
+		{
+			if (!a_quest) {
+				return "none";
+			}
+			const auto* file = a_quest->GetFile(0);
+			const char* editorId = a_quest->GetFormEditorID();
+			std::string flags;
+			if (a_quest->data.flags.all(RE::QuestFlag::kStartsEnabled)) {
+				flags += ", starts with the game";
+			}
+			if (a_quest->data.flags.all(RE::QuestFlag::kRunOnce)) {
+				flags += ", runs once";
+			}
+			return std::format("{} {:08X} [{}], type {}, started by {}{}", editorId && editorId[0] ? editorId : "(no editor ID)",
+				a_quest->GetFormID(), file ? file->GetFilename() : "?", QuestTypeName(a_quest->GetType()), QuestStartName(a_quest->eventID),
+				flags);
+		}
+	}
+
+	std::string GameLineReader::DescribeSource(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info)
+	{
+		const auto* scene = a_speaker->GetCurrentScene();
+		std::string text = "scene quest: ";
+		if (scene) {
+			const char* sceneId = scene->GetFormEditorID();
+			text += DescribeQuest(scene->parentQuest);
+			text += std::format(" | scene {:08X}{}{}{}", scene->GetFormID(), sceneId && sceneId[0] ? " "s + sceneId : "",
+				scene->flags.all(RE::BGSScene::Flag::kBeginOnQuestStart) ? ", begins on quest start" : "",
+				scene->flags.all(RE::BGSScene::Flag::kRepeatConditionsWhileTrue) ? ", repeats while conditions hold" : "");
+		} else {
+			text += "no scene";
+		}
+		const auto* lineQuest = a_info->parentTopic ? a_info->parentTopic->ownerQuest : nullptr;
+		if (!scene || lineQuest != scene->parentQuest) {
+			text += " | line's quest: " + DescribeQuest(lineQuest);
+		}
+		return text;
 	}
 
 	LineFacts GameLineReader::ReadFacts(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info)

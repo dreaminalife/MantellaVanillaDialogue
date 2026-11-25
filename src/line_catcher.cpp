@@ -41,6 +41,10 @@ namespace HeardLines
 		}
 		logs::debug("Caught {}{}: \"{}\" (info {:08X}, scene {:08X})", line->speaker.name, line->menu ? " (menu talk)" : "", line->words,
 			info->GetFormID(), line->scene);
+		// Background chatter check (temporary): at info level so it shows in every build
+		if (!line->menu) {
+			logs::info("Chatter check: {}: \"{}\" | {}", line->speaker.name, line->words, GameLineReader::DescribeSource(speaker, info));
+		}
 
 		const auto handle = speaker->GetHandle();
 		SKSE::GetTaskInterface()->AddTask([this, handle, heard = std::move(*line)]() mutable {
