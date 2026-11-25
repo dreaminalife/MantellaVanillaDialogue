@@ -67,7 +67,7 @@ namespace HeardLines
 		Person                speaker;
 		std::optional<Person> to;
 		std::string           words;
-		std::string           asked;  // Menu talk: the player's pick
+		std::string           asked;  // Menu talk: the player's pick. Empty when the NPC speaks unprompted (no option on screen led to it)
 		std::vector<Person>   heardBy;  // Never the player
 		bool                  playerThere = false;
 	};

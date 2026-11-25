@@ -89,7 +89,10 @@ namespace HeardLines
 
 		// What the player picked for the NPC to answer with this line, as the menu showed it. Not the game's last pick: when the answer
 		// starts, that still holds the pick before (the greeting for the first answer). Only read while the menu is open with this speaker:
-		// once it closes, the game may free the options
+		// once it closes, the game may free the options.
+		// Empty when no option on screen leads to the line: the NPC speaks unprompted (a forced greeting, a line that carries on by
+		// itself). Never the topic's own name: for those it is a label the player never sees, like TG01Hellos or
+		// (Invisible Continues Linked to Self)
 		std::string PickFor(const RE::TESTopicInfo* a_info)
 		{
 			auto*       topics = RE::MenuTopicManager::GetSingleton();
@@ -98,11 +101,7 @@ namespace HeardLines
 			for (auto* node = topics->dialogueListStack; !option && node; node = node->next) {
 				option = OptionFor(node->item, a_info);
 			}
-			if (option && option->topicText.c_str() && option->topicText.c_str()[0]) {
-				return option->topicText.c_str();
-			}
-			const char* topicText = a_info->parentTopic ? a_info->parentTopic->GetFullName() : nullptr;
-			return topicText ? topicText : "";
+			return option && option->topicText.c_str() ? option->topicText.c_str() : "";
 		}
 	}
 
