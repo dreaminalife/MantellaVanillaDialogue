@@ -1,5 +1,7 @@
 #include "logic/line_store.h"
 
+#include <algorithm>
+
 #include <nlohmann/json.hpp>
 
 namespace HeardLines
@@ -34,7 +36,23 @@ namespace HeardLines
 			if (a_line.to) {
 				result["to"] = ToJson(*a_line.to);
 			}
+			if (a_line.quest) {
+				result["quest"] = { { "id", a_line.quest->id }, { "journal", a_line.quest->inJournal }, { "runs_once", a_line.quest->runsOnce },
+					{ "npcs_meet", a_line.quest->startsWhenNpcsMeet }, { "follows_quest", a_line.quest->followsQuest } };
+			}
+			if (!a_line.sceneKey.empty()) {
+				result["scene_key"] = a_line.sceneKey;
+			}
 			return result;
+		}
+
+		std::optional<SceneQuest> QuestFrom(const json& a_data)
+		{
+			if (!a_data.is_object()) {
+				return std::nullopt;
+			}
+			return SceneQuest{ a_data.value("id", ""), a_data.value("journal", false), a_data.value("runs_once", false),
+				a_data.value("npcs_meet", false), a_data.value("follows_quest", false) };
 		}
 
 		std::optional<HeardLine> LineFrom(const json& a_data)
@@ -51,6 +69,8 @@ namespace HeardLines
 			line.realTime = a_data.value("time", std::int64_t{ 0 });
 			line.place = a_data.value("place", "");
 			line.scene = a_data.value("scene", std::uint32_t{ 0 });
+			line.quest = QuestFrom(a_data.value("quest", json()));  // Missing in saves from before it was sent
+			line.sceneKey = a_data.value("scene_key", "");
 			line.menu = a_data.value("menu", false);
 			line.speaker = *speaker;
 			line.to = PersonFrom(a_data.value("to", json()));
@@ -77,7 +97,9 @@ namespace HeardLines
 		std::scoped_lock lock(_lock);
 		_lines.push_back(std::move(a_line));
 		while (_lines.size() > a_mostWaiting) {
-			_lines.pop_front();
+			// Chatter goes first, so a preacher talking for hours can't push out a story scene before the next hand-over
+			const auto chatter = std::ranges::find_if(_lines, [](const HeardLine& line) { return line.quest && line.quest->LooksLikeChatter(); });
+			_lines.erase(chatter != _lines.end() ? chatter : _lines.begin());
 		}
 	}
 

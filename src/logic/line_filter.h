@@ -10,7 +10,8 @@ namespace HeardLines
 {
 	// Keeps scene lines and menu talk. Drops the player's own lines, Mantella's lines (Mantella.esp), lines from speakers outside the
 	// loaded area, and chatter:
-	// greetings and goodbyes (also when the dialogue menu opens or closes), idle remarks, combat shouts, grunts and breathing outside scenes
+	// greetings and goodbyes (also when the dialogue menu opens or closes), idle remarks, combat shouts, grunts and breathing, also from
+	// someone in a scene unless the scene has them say it
 	[[nodiscard]] bool IsWorthKeeping(const LineFacts& a_line);
 
 	// The game may report one line more than once (once per response). Lets a line through once while it is the

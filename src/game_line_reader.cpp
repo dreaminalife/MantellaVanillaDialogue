@@ -1,6 +1,5 @@
 #include "game_line_reader.h"
 
-#include <array>
 #include <ctime>
 
 namespace HeardLines
@@ -105,71 +104,82 @@ namespace HeardLines
 			return option && option->topicText.c_str() ? option->topicText.c_str() : "";
 		}
 
-		// Background chatter check (temporary)
-		std::string_view QuestTypeName(RE::QUEST_DATA::Type a_type)
+		bool IsInJournal(const RE::TESQuest* a_quest)
 		{
-			static constexpr std::array<std::string_view, 12> names{ "None", "Main Quest", "Mages Guild", "Thieves Guild",
-				"Dark Brotherhood", "Companions", "Misc", "Daedric", "Side Quest", "Civil War", "Dawnguard", "Dragonborn" };
-			const auto index = static_cast<std::size_t>(a_type);
-			return index < names.size() ? names[index] : "?";
+			return IsJournalQuest(static_cast<int>(a_quest->GetType()), !a_quest->objectives.empty());
 		}
 
-		std::string QuestStartName(RE::QuestEvent a_event)
+		// One of the conditions checks how far another quest the player follows has got: its stage, whether it runs or is done
+		bool ChecksQuestProgress(const RE::TESCondition& a_conditions, const RE::TESQuest* a_own)
 		{
-			switch (a_event) {
-			case RE::QuestEvent::kNone:
-				return "no story event";
-			case RE::QuestEvent::kActorDialogue:
-				return "two NPCs meeting (ADIA)";
-			case RE::QuestEvent::kActorHello:
-				return "an NPC greeting (AHEL)";
-			case RE::QuestEvent::kChangeLocation:
-				return "a location change (CLOC)";
-			case RE::QuestEvent::kScript:
-				return "a script (SCPT)";
-			default:
-				return std::format("story event {}", static_cast<int>(a_event));
+			using Function = RE::FUNCTION_DATA::FunctionID;
+			for (const auto* item = a_conditions.head; item; item = item->next) {
+				const auto function = item->data.functionData.function.get();
+				if (function != Function::kGetStage && function != Function::kGetStageDone && function != Function::kGetQuestRunning &&
+					function != Function::kGetQuestCompleted) {
+					continue;
+				}
+				const auto* form = static_cast<const RE::TESForm*>(item->data.functionData.params[0]);
+				const auto* quest = form && form->GetFormType() == RE::FormType::Quest ? static_cast<const RE::TESQuest*>(form) : nullptr;
+				if (quest && quest != a_own && IsInJournal(quest)) {
+					return true;
+				}
 			}
+			return false;
 		}
 
-		std::string DescribeQuest(const RE::TESQuest* a_quest)
+		// Small talk that follows a story: the quest (its dialogue or start conditions) or the scene checks another quest's progress.
+		// The lines' own conditions aren't read: in some scenes only a few lines check, and the scene would be kept in pieces
+		bool FollowsQuest(const RE::TESQuest* a_quest, const RE::BGSScene* a_scene)
 		{
-			if (!a_quest) {
-				return "none";
-			}
-			const auto* file = a_quest->GetFile(0);
-			const char* editorId = a_quest->GetFormEditorID();
-			std::string flags;
-			if (a_quest->data.flags.all(RE::QuestFlag::kStartsEnabled)) {
-				flags += ", starts with the game";
-			}
-			if (a_quest->data.flags.all(RE::QuestFlag::kRunOnce)) {
-				flags += ", runs once";
-			}
-			return std::format("{} {:08X} [{}], type {}, started by {}{}", editorId && editorId[0] ? editorId : "(no editor ID)",
-				a_quest->GetFormID(), file ? file->GetFilename() : "?", QuestTypeName(a_quest->GetType()), QuestStartName(a_quest->eventID),
-				flags);
+			return ChecksQuestProgress(a_quest->objConditions, a_quest) || ChecksQuestProgress(a_quest->storyManagerConditions, a_quest) ||
+			       (a_scene && ChecksQuestProgress(a_scene->conditions, a_quest));
 		}
-	}
 
-	std::string GameLineReader::DescribeSource(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info)
-	{
-		const auto* scene = a_speaker->GetCurrentScene();
-		std::string text = "scene quest: ";
-		if (scene) {
-			const char* sceneId = scene->GetFormEditorID();
-			text += DescribeQuest(scene->parentQuest);
-			text += std::format(" | scene {:08X}{}{}{}", scene->GetFormID(), sceneId && sceneId[0] ? " "s + sceneId : "",
-				scene->flags.all(RE::BGSScene::Flag::kBeginOnQuestStart) ? ", begins on quest start" : "",
-				scene->flags.all(RE::BGSScene::Flag::kRepeatConditionsWhileTrue) ? ", repeats while conditions hold" : "");
-		} else {
-			text += "no scene";
+		// The quest behind a scene line: the scene's, else the line's own (the speaker may have just left the scene). Read from the
+		// quest's own settings, so it works the same for every mod
+		std::optional<SceneQuest> QuestOf(RE::TESObjectREFR* a_speaker, const RE::TESTopicInfo* a_info)
+		{
+			const auto*        scene = a_speaker->GetCurrentScene();
+			const RE::TESQuest* quest = scene ? scene->parentQuest : nullptr;
+			if (!quest) {
+				scene = nullptr;  // Its conditions say nothing about the line's own quest
+				if (a_info->parentTopic) {
+					quest = a_info->parentTopic->ownerQuest;
+				}
+			}
+			if (!quest) {
+				return std::nullopt;
+			}
+			const char* editorId = quest->GetFormEditorID();
+			return SceneQuest{ editorId ? editorId : "", IsInJournal(quest), quest->data.flags.all(RE::QuestFlag::kRunOnce),
+				quest->eventID == RE::QuestEvent::kActorDialogue, FollowsQuest(quest, scene) };
 		}
-		const auto* lineQuest = a_info->parentTopic ? a_info->parentTopic->ownerQuest : nullptr;
-		if (!scene || lineQuest != scene->parentQuest) {
-			text += " | line's quest: " + DescribeQuest(lineQuest);
+
+		// The line is one of the scene's own dialogue actions: what the scene has this speaker (or another actor) say
+		bool IsSceneLine(const RE::BGSScene* a_scene, const RE::TESTopicInfo* a_info)
+		{
+			if (!a_scene || !a_info->parentTopic) {
+				return false;
+			}
+			for (const auto* action : a_scene->actions) {
+				if (action && action->GetType() == RE::BGSSceneAction::Type::kDialogue &&
+					static_cast<const RE::BGSSceneActionDialogue*>(action)->topic == a_info->parentTopic) {
+					return true;
+				}
+			}
+			return false;
 		}
-		return text;
+
+		// The scene as <file>:<6-hex form ID in that file>, the same in every load order. The file is the one that first added the scene
+		std::string SceneKeyOf(const RE::BGSScene* a_scene)
+		{
+			const auto* file = a_scene ? a_scene->GetFile(0) : nullptr;
+			if (!file) {
+				return "";
+			}
+			return std::format("{}:{:06X}", file->GetFilename(), a_scene->GetLocalFormID());
+		}
 	}
 
 	LineFacts GameLineReader::ReadFacts(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info)
@@ -183,6 +193,10 @@ namespace HeardLines
 		facts.sceneId = scene ? scene->GetFormID() : 0;
 		facts.menuTalk = !facts.speakerIsPlayer && IsMenuTalk(a_speaker);
 		facts.speakerLoaded = a_speaker->Is3DLoaded();
+		// Only looked up when it decides: for a line said in a scene that Skyrim doesn't file as a scene line
+		if (scene && !facts.menuTalk && facts.subtype != kSceneSubtype) {
+			facts.topicInScene = IsSceneLine(scene, a_info);
+		}
 		return facts;
 	}
 
@@ -210,6 +224,8 @@ namespace HeardLines
 			if (to && to != a_speaker) {
 				line.to = PersonOf(to);
 			}
+			line.quest = QuestOf(a_speaker, a_info);
+			line.sceneKey = SceneKeyOf(a_speaker->GetCurrentScene());
 		}
 		line.place = PlaceOf(a_speaker);
 		line.time = Now();

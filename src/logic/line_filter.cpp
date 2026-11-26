@@ -31,7 +31,9 @@ namespace HeardLines
 		if (a_line.menuTalk) {
 			return a_line.subtype != kHelloSubtype && a_line.subtype != kGoodbyeSubtype;
 		}
-		return a_line.subtype == kSceneSubtype || a_line.sceneId != 0;
+		// A scene line. Someone in a scene may also greet, remark or shout (a soldier's combat taunt in a battle), even with a line of the
+		// scene's own quest: only the lines the scene has them say count
+		return a_line.subtype == kSceneSubtype || (a_line.sceneId != 0 && a_line.topicInScene);
 	}
 
 	bool RepeatGuard::IsNew(std::uint32_t a_speaker, std::uint32_t a_info)

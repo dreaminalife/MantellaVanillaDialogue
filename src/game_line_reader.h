@@ -16,9 +16,6 @@ namespace HeardLines
 		// The whole line, once it passed the filter. Nobody has heard it yet. Empty when it has no words
 		[[nodiscard]] static std::optional<HeardLine> ReadLine(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info, const LineFacts& a_facts);
 
-		// Background chatter check (temporary): the quest behind a scene line, how that quest starts and the scene's flags, for the log
-		[[nodiscard]] static std::string DescribeSource(RE::TESObjectREFR* a_speaker, RE::TESTopicInfo* a_info);
-
 		[[nodiscard]] static Person   PersonOf(RE::TESObjectREFR* a_ref);
 		[[nodiscard]] static Point    PointOf(const RE::NiPoint3& a_point);
 		[[nodiscard]] static GameTime Now();

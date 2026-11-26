@@ -2,7 +2,7 @@
 
 An SKSE plugin for [Mantella](https://github.com/art-from-the-machine/Mantella). It catches the voiced lines NPCs hear (scene lines, and the player's talk in the dialogue menu) so Mantella NPCs can remember them.
 
-Skyrim reports each line as it starts. The plugin keeps scene lines and menu talk, and drops the player's own lines, Mantella's lines (`Mantella.esp`), lines from people outside the area the game has loaded around the player (it runs their scenes without speaking them, so nobody could hear them) and chatter: greetings, idle remarks, combat shouts, grunts and breathing. For each line it notes who spoke, to whom, the words (read from the line, so subtitles can be off), who heard it and whether the player was there. The lines wait in the save until the Mantella game add-on hands them to Mantella with a request it already sends. Nothing runs while nobody speaks.
+Skyrim reports each line as it starts. The plugin keeps scene lines and menu talk, and drops the player's own lines, Mantella's lines (`Mantella.esp`), lines from people outside the area the game has loaded around the player (it runs their scenes without speaking them, so nobody could hear them) and chatter: greetings, idle remarks, combat shouts, grunts and breathing. Someone in a scene can also greet, remark or shout (a soldier's taunt in a battle); only the lines the scene has them say are kept. For each line it notes who spoke, to whom, the words (read from the line, so subtitles can be off), who heard it and whether the player was there. For a scene line it also notes the scene (its file and form ID in that file, such as `Skyrim.esm:092A31`, for scene entries in Mantella's lists) and the scene's quest: its editor ID, whether the player can follow it in the journal (it has a journal category or objectives; a Miscellaneous quest only with objectives, as the journal shows them), whether Run Once is ticked, whether it starts when two NPCs meet, and whether the quest or the scene checks how far a journal quest has got (Enmon and Mena missing their daughter only after The Heart of Dibella). Mantella uses these to tell background chatter (Heimskr preaching, shopkeepers bickering) from story scenes. The lines wait in the save until the Mantella game add-on hands them to Mantella with a request it already sends. Nothing runs while nobody speaks.
 
 One DLL works with Skyrim SE, AE and VR. It needs SKSE and the Address Library for SKSE Plugins.
 
@@ -15,7 +15,7 @@ Bool Function SetSettings(Bool catchLines, Bool nearbyOverhear, Float hearingDis
 String Function TakeLines() Global Native
 ```
 
-- `SetSettings`: Vanilla Dialogues on or off, whether NPCs near a line also hear it, Hearing Distance in game units, and how many lines wait at most (the oldest are dropped). It returns false and changes nothing when the distance or the most waiting lines aren't above 0. Nothing is caught until settings arrive, so the add-on sends them on every load and on a new game.
+- `SetSettings`: Vanilla Dialogues on or off, whether NPCs near a line also hear it, Hearing Distance in game units, and how many lines wait at most (the add-on sends 500). Past that, the oldest small talk from two NPCs meeting is dropped (its quest starts when two NPCs meet, has no journal entry, can run again and follows no quest's progress), else the oldest line, so a crowded market can't push out a story scene. It returns false and changes nothing when the distance or the most waiting lines aren't above 0. Nothing is caught until settings arrive, so the add-on sends them on every load and on a new game.
 - `TakeLines`: every waiting line as JSON, and the store is emptied. Always returns JSON, with the game's time now (left out while the game can't tell it), so Mantella can tell when an older save was loaded:
 
 ```json
@@ -23,11 +23,14 @@ String Function TakeLines() Global Native
  "lines": [{"day": 42.30, "hour": 12.9, "time": 1763600000, "place": "The Bannered Mare", "scene": 123456, "menu": false,
             "speaker": {"id": 1234567, "name": "Mikael"}, "to": {"id": 7654321, "name": "Carlotta"},
             "words": "Your beauty outshines the sun.", "asked": "",
+            "quest": {"id": "DialogueWhiterunMikaelCarlottaScene", "journal": false, "runs_once": false, "npcs_meet": true,
+                      "follows_quest": false},
+            "scene_key": "Skyrim.esm:0ABCDE",
             "heard_by": [{"id": 1234567, "name": "Mikael"}, {"id": 7654321, "name": "Carlotta"}, {"id": 1112223, "name": "Saadia"}],
             "player_there": true}]}
 ```
 
-`heard_by` never holds the player. `to` is left out when nobody is spoken to. For menu talk, `menu` is true, `asked` is the player's pick and `to` is the player.
+`heard_by` never holds the player. `to` is left out when nobody is spoken to. `quest` is left out for menu talk and when the line has no quest. `scene_key` is left out for menu talk and outside a scene. For menu talk, `menu` is true, `asked` is the player's pick and `to` is the player.
 
 ## Code
 

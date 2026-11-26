@@ -27,7 +27,7 @@ namespace HeardLines
 	{
 	public:
 		virtual ~ILineStore() = default;
-		// Past a_mostWaiting lines, the oldest are dropped
+		// Past a_mostWaiting lines, the oldest small talk from two NPCs meeting is dropped (SceneQuest::LooksLikeChatter), else the oldest line
 		virtual void Add(HeardLine a_line, std::size_t a_mostWaiting) = 0;
 		// Every waiting line as the JSON Mantella reads, and the store is emptied. a_now is left out when the game can't tell the time
 		virtual std::string TakeAllAsJson(const std::optional<GameTime>& a_now, const std::string& a_player) = 0;

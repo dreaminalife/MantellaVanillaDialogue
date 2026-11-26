@@ -53,6 +53,86 @@ TEST_CASE("past the most waiting lines, the oldest are dropped")
 	CHECK(Words(json::parse(store.TakeAllAsJson(std::nullopt, "Kit"))) == std::vector<std::string>{ "Line 2", "Line 3", "Line 4" });
 }
 
+TEST_CASE("the add-on's 500 waiting lines all fit")
+{
+	CoSaveLineStore store;
+	for (int i = 0; i < 500; ++i) {
+		store.Add(Line("Line " + std::to_string(i)), 500);
+	}
+	CHECK(store.Count() == 500);
+	store.Add(Line("Line 500"), 500);
+	const auto words = Words(json::parse(store.TakeAllAsJson(std::nullopt, "Kit")));
+	CHECK(words.size() == 500);
+	CHECK(words.front() == "Line 1");
+	CHECK(words.back() == "Line 500");
+}
+
+TEST_CASE("past the most waiting lines, the oldest small talk from two NPCs meeting goes before older story lines")
+{
+	auto story = Line("I've been ordered to arrest you.");
+	story.quest = SceneQuest{ "MS11", true, true, false };
+	auto helper = Line("You're under arrest.");
+	helper.quest = SceneQuest{ "MS11WuunferthArrest", false, false, false };  // A story scene with no journal entry: never chatter here
+	auto bickering = Line("Did you raise your prices?");
+	bickering.quest = SceneQuest{ "DialogueWhiterunCarlottaOlfinaScene1", false, false, true };
+	CoSaveLineStore store;
+	store.Add(story, 3);
+	store.Add(helper, 3);
+	store.Add(bickering, 3);
+	store.Add(Line("No quest."), 3);  // Too many: the bickering goes, the older story lines stay
+	CHECK(Words(json::parse(store.TakeAllAsJson(std::nullopt, "Kit"))) ==
+		  std::vector<std::string>{ "I've been ordered to arrest you.", "You're under arrest.", "No quest." });
+}
+
+TEST_CASE("two NPCs meeting in a quest the player follows, or one that runs once, never looks like chatter")
+{
+	CHECK((SceneQuest{ "DialogueWhiterunCarlottaOlfinaScene1", false, false, true }.LooksLikeChatter()));
+	CHECK_FALSE((SceneQuest{ "DarkBrotherhoodSanctuaryConvSystem", true, false, true }.LooksLikeChatter()));
+	CHECK_FALSE((SceneQuest{ "AModsMeeting", false, true, true }.LooksLikeChatter()));
+	CHECK_FALSE((SceneQuest{ "DialogueWhiterunHeimskrPreachScene", false, false, false }.LooksLikeChatter()));
+}
+
+TEST_CASE("a quest is in the journal with a category or objectives, but Miscellaneous only with objectives")
+{
+	CHECK(IsJournalQuest(8 /* side quest */, false));
+	CHECK(IsJournalQuest(kQuestTypeNone, true));  // The Heart of Dibella: no category, but objectives
+	CHECK(IsJournalQuest(kQuestTypeMisc, true));
+	CHECK_FALSE(IsJournalQuest(kQuestTypeMisc, false));  // WITavernServerPatronSceneA
+	CHECK_FALSE(IsJournalQuest(kQuestTypeNone, false));
+}
+
+TEST_CASE("small talk from two NPCs meeting that follows a quest's progress never looks like chatter")
+{
+	CHECK_FALSE((SceneQuest{ "DialogueKarthwastenT01EnmonsHouseScene03", false, false, true, true }.LooksLikeChatter()));
+}
+
+TEST_CASE("past the most waiting lines, small talk that follows a quest's progress stays and plain small talk goes")
+{
+	auto missing = Line("I still miss her.");
+	missing.quest = SceneQuest{ "DialogueKarthwastenT01EnmonsHouseScene03", false, false, true, true };
+	auto bickering = Line("Did you raise your prices?");
+	bickering.quest = SceneQuest{ "DialogueWhiterunCarlottaOlfinaScene1", false, false, true };
+	CoSaveLineStore store;
+	store.Add(missing, 2);
+	store.Add(bickering, 2);
+	store.Add(Line("No quest."), 2);
+	CHECK(Words(json::parse(store.TakeAllAsJson(std::nullopt, "Kit"))) == std::vector<std::string>{ "I still miss her.", "No quest." });
+}
+
+TEST_CASE("past the most waiting lines with no chatter waiting, the oldest line goes")
+{
+	auto once = Line("Something's not right here.");
+	once.quest = SceneQuest{ "DialogueWhiterunArgueScene", false, true, true };  // Two NPCs meeting, but runs once: not chatter
+	auto story = Line("I've been ordered to arrest you.");
+	story.quest = SceneQuest{ "MS11", true, true, false };
+	CoSaveLineStore store;
+	store.Add(once, 2);
+	store.Add(story, 2);
+	store.Add(Line("No quest."), 2);
+	CHECK(Words(json::parse(store.TakeAllAsJson(std::nullopt, "Kit"))) ==
+		  std::vector<std::string>{ "I've been ordered to arrest you.", "No quest." });
+}
+
 TEST_CASE("taking the lines empties the store")
 {
 	CoSaveLineStore store;
@@ -95,6 +175,75 @@ TEST_CASE("without the game's time, now is left out; with nobody spoken to, to i
 	const auto handOver = json::parse(store.TakeAllAsJson(std::nullopt, "Kit"));
 	CHECK_FALSE(handOver.contains("now"));
 	CHECK_FALSE(handOver["lines"][0].contains("to"));
+}
+
+TEST_CASE("a scene line tells its quest; without one, quest is left out")
+{
+	CoSaveLineStore store;
+	auto            line = Line("Ere you ascended, Talos was a man.");
+	line.quest = SceneQuest{ "DialogueWhiterunHeimskrPreachScene", false, false, false };
+	store.Add(line, 200);
+	auto meeting = Line("Did you raise your prices, Carlotta?");
+	meeting.quest = SceneQuest{ "DialogueWhiterunCarlottaOlfinaScene1", false, false, true };
+	store.Add(meeting, 200);
+	auto story = Line("I've been ordered to arrest you.");
+	story.quest = SceneQuest{ "MS11", true, true, false };
+	store.Add(story, 200);
+	store.Add(Line("No quest."), 200);
+	const auto lines = json::parse(store.TakeAllAsJson(std::nullopt, "Kit"))["lines"];
+	CHECK(lines[0]["quest"] == json{ { "id", "DialogueWhiterunHeimskrPreachScene" }, { "journal", false }, { "runs_once", false },
+								   { "npcs_meet", false }, { "follows_quest", false } });
+	CHECK(lines[1]["quest"]["npcs_meet"] == true);
+	CHECK(lines[2]["quest"]["journal"] == true);
+	CHECK(lines[2]["quest"]["runs_once"] == true);
+	CHECK_FALSE(lines[3].contains("quest"));
+}
+
+TEST_CASE("the quest survives a save and load, and a save from before it was sent loads without one")
+{
+	CoSaveLineStore saved;
+	auto            line = Line("Did you raise your prices, Carlotta?");
+	line.quest = SceneQuest{ "DialogueWhiterunCarlottaOlfinaScene1", false, false, true };
+	saved.Add(line, 200);
+	MemoryRecord record;
+	saved.Save(record);
+	CoSaveLineStore loaded;
+	CHECK(loaded.Load(record));
+	CHECK(json::parse(loaded.TakeAllAsJson(std::nullopt, "Kit"))["lines"][0]["quest"]["id"] == "DialogueWhiterunCarlottaOlfinaScene1");
+
+	MemoryRecord older;
+	older.saved = std::make_pair(CoSaveLineStore::kVersion,
+		std::string(R"({"lines":[{"day":42.5,"hour":12.0,"speaker":{"id":1,"name":"Mikael"},"words":"Hello."}]})"));
+	CoSaveLineStore fromOlder;
+	CHECK(fromOlder.Load(older));
+	CHECK_FALSE(json::parse(fromOlder.TakeAllAsJson(std::nullopt, "Kit"))["lines"][0].contains("quest"));
+}
+
+TEST_CASE("a scene line tells its scene key and whether it follows a quest, and both survive a save and load")
+{
+	CoSaveLineStore saved;
+	auto            line = Line("I still miss her.");
+	line.quest = SceneQuest{ "DialogueKarthwastenT01EnmonsHouseScene03", false, false, true, true };
+	line.sceneKey = "Skyrim.esm:092A31";
+	saved.Add(line, 200);
+	saved.Add(Line("No scene key."), 200);
+	MemoryRecord record;
+	saved.Save(record);
+	CoSaveLineStore loaded;
+	CHECK(loaded.Load(record));
+	const auto lines = json::parse(loaded.TakeAllAsJson(std::nullopt, "Kit"))["lines"];
+	CHECK(lines[0]["scene_key"] == "Skyrim.esm:092A31");
+	CHECK(lines[0]["quest"]["follows_quest"] == true);
+	CHECK_FALSE(lines[1].contains("scene_key"));  // Menu talk and lines outside a scene have none
+
+	MemoryRecord older;  // A save from before they were sent
+	older.saved = std::make_pair(CoSaveLineStore::kVersion,
+		std::string(R"({"lines":[{"day":42.5,"hour":12.0,"speaker":{"id":1,"name":"Mikael"},"words":"Hello.","quest":{"id":"A"}}]})"));
+	CoSaveLineStore fromOlder;
+	CHECK(fromOlder.Load(older));
+	const auto old = json::parse(fromOlder.TakeAllAsJson(std::nullopt, "Kit"))["lines"][0];
+	CHECK_FALSE(old.contains("scene_key"));
+	CHECK(old["quest"]["follows_quest"] == false);
 }
 
 TEST_CASE("menu talk keeps the player's pick")

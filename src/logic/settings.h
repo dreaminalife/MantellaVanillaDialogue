@@ -10,7 +10,7 @@ namespace HeardLines
 		bool  catchLines = false;      // Vanilla Dialogues on
 		bool  nearbyOverhear = true;   // NPCs near a line also hear it, not only the speaker and the person spoken to
 		float hearingDistance = 0;     // Game units
-		int   mostWaiting = 0;         // Lines kept until handed over, oldest dropped first
+		int   mostWaiting = 0;         // Lines kept until handed over. Past it, chatter is dropped first, then the oldest
 	};
 
 	// The settings the game add-on sends on every load. Nothing is caught until they arrive
